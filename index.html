@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartManage Businesses</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172033}
+header{background:#073b2a;color:white;padding:18px}
+header h1{margin:0;font-size:23px}
+header p{margin:7px 0 0;color:#d1fae5}
+select,input,button{padding:11px;border-radius:7px;border:1px solid #cbd5e1;font-size:15px}
+button{background:#087f5b;color:white;border:0;cursor:pointer}
+button:hover{opacity:.9}
+nav{display:flex;gap:7px;overflow:auto;padding:10px;background:#fff}
+nav button{white-space:nowrap;background:#e2e8f0;color:#172033}
+nav button.active{background:#087f5b;color:white}
+main{padding:15px;max-width:1100px;margin:auto}
+.panel,.card{background:white;border-radius:12px;padding:15px;margin-bottom:15px;box-shadow:0 2px 8px #0000000c}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
+.stat{background:#e7f8ef;border-radius:10px;padding:15px}
+.stat strong{display:block;font-size:22px;margin-top:8px;color:#087f5b}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;margin:12px 0}
+input,select{width:100%;min-width:0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left}
+.table-wrap{overflow-x:auto}
+.small{font-size:13px;color:#64748b}
+.danger{background:#b91c1c}
+footer{text-align:center;color:#64748b;padding:20px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>SmartManage Businesses</h1>
+  <p>Manage your business in one place</p>
+  <div style="margin-top:12px">
+    <label for="business">Choose business:</label>
+    <select id="business" onchange="switchBusiness()" style="max-width:230px">
+      <option>General Shop</option><option>School</option><option>Farm</option>
+      <option>Salon</option><option>Restaurant</option><option>Hardware</option>
+      <option>Transport</option><option>Other Business</option>
+    </select>
+    <button onclick="addBusiness()">+ Add business</button>
+  </div>
+</header>
+
+<nav id="nav"></nav>
+<main id="content"></main>
+<footer>SmartManage Businesses · Local browser prototype</footer>
+
+<script>
+const pages=["Dashboard","Sales","Expenses","Stock","Debts","Workers","Reports","Backup & Settings"];
+let currentBusiness=localStorage.getItem("sm_business")||"General Shop";
+let allData=JSON.parse(localStorage.getItem("sm_all_data")||"{}");
+let page="Dashboard";
+
+function data(){
+ if(!allData[currentBusiness]) allData[currentBusiness]={
+  sales:[],expenses:[],stock:[],debts:[],workers:[]
+ };
+ return allData[currentBusiness];
+}
+function save(){
+ localStorage.setItem("sm_all_data",JSON.stringify(allData));
+ localStorage.setItem("sm_business",currentBusiness);
+}
+function money(n){return "MK "+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2})}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+function switchBusiness(){
+ currentBusiness=document.getElementById("business").value;
+ save();render();
+}
+function addBusiness(){
+ let name=prompt("Enter your business name:");
+ if(!name||!name.trim())return;
+ name=name.trim();
+ if(!allData[name])allData[name]={sales:[],expenses:[],stock:[],debts:[],workers:[]};
+ currentBusiness=name;
+ let select=document.getElementById("business");
+ if(![...select.options].some(o=>o.value===name)){
+  select.add(new Option(name,name));
+ }
+ select.value=name;save();render();
+}
+function drawNav(){
+ document.getElementById("nav").innerHTML=pages.map(p=>
+ `<button class="${p===page?'active':''}" onclick="page='${p}';render()">${p}</button>`
+ ).join("");
+}
+function addForm(title,fields,action){
+ return `<section class="panel"><h3>${title}</h3><form onsubmit="${action}(event)">
+ ${fields.map(f=>`<input name="${f[0]}" placeholder="${f[1]}" ${f[2]||""} required>`).join("")}
+ <button type="submit">Save</button></form></section>`;
+}
+function table(title,rows,headers){
+ return `<section class="panel"><h3>${title}</h3><div class="table-wrap"><table>
+ <thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+ <tbody>${rows.length?rows.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${headers.length}">No records yet</td></tr>`}</tbody>
+ </table></div></section>`;
+}
+function record(type,obj){data()[type].push({...obj,date:new Date().toLocaleDateString()});save();render()}
+
+function render(){
+ document.getElementById("business").value=currentBusiness;
+ drawNav();
+ const d=data();
+ const totalSales=d.sales.reduce((s,r)=>s+Number(r.amount||0),0);
+ const totalExpenses=d.expenses.reduce((s,r)=>s+Number(r.amount||0),0);
+ const totalDebts=d.debts.reduce((s,r)=>s+Number(r.amount||0),0);
+ const totalStock=d.stock.reduce((s,r)=>s+Number(r.quantity||0),0);
+ let html="";
+
+ if(page==="Dashboard"){
+ html=`<h2>${esc(currentBusiness)} Dashboard</h2>
+ <div class="grid">
+ <div class="stat">Total sales<strong>${money(totalSales)}</strong></div>
+ <div class="stat">Expenses<strong>${money(totalExpenses)}</strong></div>
+ <div class="stat">Balance before other costs<strong>${money(totalSales-totalExpenses)}</strong></div>
+ <div class="stat">Customer debts<strong>${money(totalDebts)}</strong></div>
+ <div class="stat">Stock units<strong>${totalStock}</strong></div>
+ <div class="stat">Workers<strong>${d.workers.length}</strong></div>
+ </div>
+ <section class="panel"><h3>Welcome</h3>
+ <p>Use the tabs above to record sales, expenses, stock, customer debts and workers.</p>
+ <p class="small">These figures come from records entered in this browser. They are not verified bank balances or audited accounts.</p></section>`;
+ }
+
+ if(page==="Sales"){
+ html=addForm("Record a sale",[["item","Item or service"],["amount","Amount in MK",'type="number" min="0" step="0.01"'],["method","Payment method"]],"addSale")
+ +table("Sales",d.sales.map(r=>[r.date,r.item,money(r.amount),r.method]),["Date","Item","Amount","Method"]);
+ }
+ if(page==="Expenses"){
+ html=addForm("Record an expense",[["item","Expense description"],["amount","Amount in MK",'type="number" min="0" step="0.01"'],["category","Category"]],"addExpense")
+ +table("Expenses",d.expenses.map(r=>[r.date,r.item,money(r.amount),r.category]),["Date","Description","Amount","Category"]);
+ }
+ if(page==="Stock"){
+ html=addForm("Add stock",[["item","Item name"],["quantity","Quantity",'type="number" min="0"'],["price","Price per unit in MK",'type="number" min="0" step="0.01"']],"addStock")
+ +table("Stock records",d.stock.map(r=>[r.date,r.item,r.quantity,money(r.price),money(Number(r.quantity)*Number(r.price))]),["Date","Item","Quantity","Unit price","Total value"]);
+ }
+ if(page==="Debts"){
+ html=addForm("Record customer debt",[["customer","Customer name"],["amount","Amount owed in MK",'type="number" min="0" step="0.01"'],["phone","Customer phone (optional)"]],"addDebt")
+ +table("Customer debts",d.debts.map(r=>[r.date,r.customer,money(r.amount),r.phone||""]),["Date","Customer","Amount owed","Phone"]);
+ }
+ if(page==="Workers"){
+ html=addForm("Add worker",[["name","Worker full name"],["phone","Phone number"],["role","Job or role"],["pay","Pay amount in MK",'type="number" min="0" step="0.01"']],"addWorker")
+ +table("Workers",d.workers.map(r=>[r.date,r.name,r.phone,r.role,money(r.pay)]),["Date added","Name","Phone","Role","Pay"]);
+ html+=`<section class="panel"><h3>Payroll reminder</h3><p>Record worker pay in your own records. This prototype does not send money or make mobile-money transfers.</p></section>`;
+ }
+ if(page==="Reports"){
+ html=`<section class="panel"><h2>Business Report</h2>
+ <p>Total sales: <b>${money(totalSales)}</b></p>
+ <p>Total expenses: <b>${money(totalExpenses)}</b></p>
+ <p>Difference: <b>${money(totalSales-totalExpenses)}</b></p>
+ <p>Customer debts recorded: <b>${money(totalDebts)}</b></p>
+ <button onclick="exportCSV()">Export records to CSV</button>
+ </section>`;
+ }
+ if(page==="Backup & Settings"){
+ html=`<section class="panel"><h2>Backup & Settings</h2>
+ <p>Download a backup of your business records before clearing browser data or changing devices.</p>
+ <button onclick="backup()">Download backup</button>
+ <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+ <h3>Restore backup</h3>
+ <input type="file" id="restoreFile" accept=".json,application/json">
+ <button onclick="restore()">Restore selected backup</button>
+ <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+ <h3>Privacy notice and user agreement</h3>
+ <p>This prototype stores records in this browser on this device. It does not provide cloud synchronization, verified secure authentication, automatic online backups, or real payment processing. Other people who can access this device or browser profile may be able to view records. Keep your own backup and avoid entering sensitive information.</p>
+ <label><input id="agree" type="checkbox" style="width:auto"> I have read and understood this notice.</label>
+ <p class="small">Acceptance is stored on this device only.</p>
+ <button onclick="acceptNotice()">Accept notice</button>
+ <p id="agreementStatus" class="small"></p>
+ <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+ <h3>Subscription information</h3>
+ <p>Planned price: MK 5,000 per 90 days, with a planned 24-hour trial. Payment verification and subscription activation are not connected in this prototype. Do not send payment based only on this demo.</p>
+ <button class="danger" onclick="clearCurrent()">Clear this business's records</button>
+ </section>`;
+ }
+ document.getElementById("content").innerHTML=html;
+}
+function addSale(e){e.preventDefault();let f=e.target;record("sales",{item:f.item.value,amount:+f.amount.value,method:f.method.value})}
+function addExpense(e){e.preventDefault();let f=e.target;record("expenses",{item:f.item.value,amount:+f.amount.value,category:f.category.value})}
+function addStock(e){e.preventDefault();let f=e.target;record("stock",{item:f.item.value,quantity:+f.quantity.value,price:+f.price.value})}
+function addDebt(e){e.preventDefault();let f=e.target;record("debts",{customer:f.customer.value,amount:+f.amount.value,phone:f.phone.value})}
+function addWorker(e){e.preventDefault();let f=e.target;record("workers",{name:f.name.value,phone:f.phone.value,role:f.role.value,pay:+f.pay.value})}
+function backup(){
+ const blob=new Blob([JSON.stringify(allData,null,2)],{type:"application/json"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+ a.download="smartmanage-backup.json";a.click();URL.revokeObjectURL(a.href);
+}
+function restore(){
+ const file=document.getElementById("restoreFile").files[0];
+ if(!file){alert("Choose a backup file first.");return}
+ const reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   const parsed=JSON.parse(reader.result);
+   if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw Error();
+   if(!confirm("Replace the current saved business records with this backup?"))return;
+   allData=parsed;save();
+   if(!allData[currentBusiness])currentBusiness=Object.keys(allData)[0]||"General Shop";
+   refreshBusinessOptions();render();alert("Backup restored.");
+  }catch(err){alert("This backup file is invalid. Your records were not changed.")}
+ };
+ reader.readAsText(file);
+}
+function refreshBusinessOptions(){
+ const sel=document.getElementById("business");sel.innerHTML="";
+ Object.keys(allData).forEach(n=>sel.add(new Option(n,n)));
+ if(!allData[currentBusiness])allData[currentBusiness]={sales:[],expenses:[],stock:[],debts:[],workers:[]};
+ sel.value=currentBusiness;save();
+}
+function exportCSV(){
+ const d=data();let lines=[["Type","Date","Description","Amount","Extra"]];
+ for(const [type,arr] of Object.entries({Sales:d.sales,Expenses:d.expenses,Stock:d.stock,Debts:d.debts,Workers:d.workers})){
+  arr.forEach(r=>lines.push([type,r.date,r.item||r.customer||r.name||"",r.amount??r.price??r.pay??"",r.method||r.category||r.quantity||r.role||""]));
+ }
+ const csv=lines.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+ a.download="smartmanage-report.csv";a.click();URL.revokeObjectURL(a.href);
+}
+function acceptNotice(){
+ if(!document.getElementById("agree").checked){alert("Please tick the box to confirm you read the notice.");return}
+ localStorage.setItem("sm_notice_accepted","yes");
+ document.getElementById("agreementStatus").textContent="Notice accepted on this device.";
+}
+function clearCurrent(){
+ if(confirm("Permanently clear records for "+currentBusiness+" from this browser? Download a backup first if needed.")){
+  allData[currentBusiness]={sales:[],expenses:[],stock:[],debts:[],workers:[]};
+  save();render();
+ }
+}
+if(!allData[currentBusiness])allData[currentBusiness]={sales:[],expenses:[],stock:[],debts:[],workers:[]};
+save();render();
+</script>
+</body>
+</html>
